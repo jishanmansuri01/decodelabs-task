@@ -19,6 +19,8 @@ const COLORS = {
   dangerLight: "#FEF2F2",
 };
 
+const API_BASE = "http://localhost:5000/api";
+
 const MOCK_JOBS = [
   { id: 1, title: "Frontend Developer", company: "TechNova Pvt Ltd", location: "Bangalore, India", type: "Full-time", salary: "₹8-12 LPA", tags: ["React", "TypeScript", "Tailwind"], description: "We are looking for a skilled frontend developer to join our growing product team. You will work on building beautiful, responsive web applications used by thousands of users.", requirements: ["3+ years React experience", "Strong CSS/HTML fundamentals", "Experience with REST APIs", "Good communication skills"], postedAt: "2 days ago", logo: "TN", logoColor: "#4F46E5" },
   { id: 2, title: "Full Stack Engineer", company: "CloudBridge Solutions", location: "Remote", type: "Full-time", salary: "₹12-18 LPA", tags: ["Node.js", "React", "MongoDB"], description: "Join our fast-growing startup as a full stack engineer. You'll own features end-to-end and work directly with founders.", requirements: ["Node.js & Express", "React.js", "MongoDB / PostgreSQL", "Docker basics"], postedAt: "1 day ago", logo: "CB", logoColor: "#06B6D4" },
@@ -54,6 +56,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #F8FAFC; col
 .btn-outline:hover { border-color: #4F46E5; color: #4F46E5; background: #EEF2FF; }
 .btn-primary { background: #4F46E5; color: white; }
 .btn-primary:hover { background: #3730A3; }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-sm { padding: 0.35rem 0.9rem; font-size: 0.8rem; }
 .btn-danger { background: #FEF2F2; color: #EF4444; border: none; }
 .hero { background: linear-gradient(135deg, #EEF2FF 0%, #F0FDFE 100%); padding: 5rem 2.5rem; text-align: center; border-bottom: 1px solid #E2E8F0; width: 100%; }
@@ -185,6 +188,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #F8FAFC; col
 .auth-tabs { display: flex; background: #F8FAFC; border-radius: 10px; padding: 4px; margin-bottom: 1.5rem; }
 .auth-tab { flex: 1; padding: 0.5rem; text-align: center; font-size: 0.85rem; font-weight: 500; border-radius: 8px; cursor: pointer; color: #64748B; border: none; background: none; transition: all 0.15s; }
 .auth-tab.active { background: white; color: #4F46E5; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.auth-error { background: #FEF2F2; color: #DC2626; padding: 0.65rem 0.9rem; border-radius: 8px; font-size: 0.825rem; margin-bottom: 1rem; border: 1px solid #FEE2E2; }
 .divider-text { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; }
 .divider-text span { font-size: 0.75rem; color: #94A3B8; }
 .divider-text::before, .divider-text::after { content: ""; flex: 1; height: 1px; background: #E2E8F0; }
@@ -246,6 +250,11 @@ function JobCard({ job, onClick }) {
 }
 
 function Navbar({ page, setPage, user, setUser }) {
+  function handleLogout() {
+    localStorage.removeItem("token");
+    setUser(null);
+    setPage("home");
+  }
   return (
     <nav className="nav">
       <div className="nav-logo" onClick={() => setPage("home")}>Job<span>Spark</span></div>
@@ -259,7 +268,7 @@ function Navbar({ page, setPage, user, setUser }) {
         {user ? (
           <>
             <span style={{ fontSize: "0.85rem", color: "#64748B" }}>{user.name}</span>
-            <button className="btn btn-outline" onClick={() => setUser(null)}>Logout</button>
+            <button className="btn btn-outline" onClick={handleLogout}>Logout</button>
           </>
         ) : (
           <>
@@ -512,19 +521,63 @@ function AuthPage({ setPage, setUser, mode }) {
   const [tab, setTab] = useState(mode === "register" ? "register" : "login");
   const [role, setRole] = useState("seeker");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
-  function handleSubmit(e) {
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
     e.preventDefault();
-    setUser({ name: form.name || "Jishan Mansuri", email: form.email, role });
-    setPage(role === "employer" ? "dashboard" : "jobs");
+    setError("");
+    setLoading(true);
+
+    try {
+      if (tab === "register") {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: form.name, email: form.email, password: form.password, role }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          // Shows real backend errors e.g. "An account with this email already exists."
+          setError(data.message || "Registration failed. Please try again.");
+          setLoading(false);
+          return;
+        }
+        localStorage.setItem("token", data.token);
+        setUser(data.user);
+        setPage(data.user.role === "employer" ? "dashboard" : "jobs");
+      } else {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: form.email, password: form.password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          // Shows real backend errors e.g. "Invalid email or password."
+          setError(data.message || "Wrong credentials. Please check your email and password.");
+          setLoading(false);
+          return;
+        }
+        localStorage.setItem("token", data.token);
+        setUser(data.user);
+        setPage(data.user.role === "employer" ? "dashboard" : "jobs");
+      }
+    } catch (err) {
+      setError("Could not reach the server. Is your backend running on http://localhost:5000?");
+    } finally {
+      setLoading(false);
+    }
   }
+
   return (
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="auth-logo">Job<span>Spark</span></div>
         <div className="auth-tagline">Your career, your spark</div>
         <div className="auth-tabs">
-          <button className={`auth-tab ${tab === "login" ? "active" : ""}`} onClick={() => setTab("login")}>Log in</button>
-          <button className={`auth-tab ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}>Register</button>
+          <button className={`auth-tab ${tab === "login" ? "active" : ""}`} onClick={() => { setTab("login"); setError(""); }}>Log in</button>
+          <button className={`auth-tab ${tab === "register" ? "active" : ""}`} onClick={() => { setTab("register"); setError(""); }}>Register</button>
         </div>
         {tab === "register" && (
           <div>
@@ -535,17 +588,18 @@ function AuthPage({ setPage, setUser, mode }) {
             </div>
           </div>
         )}
+        {error && <div className="auth-error">⚠️ {error}</div>}
         <form onSubmit={handleSubmit}>
-          {tab === "register" && <div className="form-group"><label>Full Name *</label><input required placeholder="Jishan Mansuri" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>}
-          <div className="form-group"><label>Email Address *</label><input required type="email" placeholder="you@example.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
-          <div className="form-group"><label>Password *</label><input required type="password" placeholder="••••••••" value={form.password} onChange={e => setForm({...form, password: e.target.value})} /></div>
-          <button type="submit" className="btn btn-primary" style={{ width: "100%", padding: "0.7rem" }}>{tab === "login" ? "Log in →" : "Create account →"}</button>
+          {tab === "register" && <div className="form-group"><label>Full Name *</label><input required placeholder="" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>}
+          <div className="form-group"><label>Email Address *</label><input required type="email" placeholder="" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+          <div className="form-group"><label>Password *</label><input required type="password" placeholder="" value={form.password} onChange={e => setForm({...form, password: e.target.value})} /></div>
+          <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "0.7rem" }}>
+            {loading ? "Please wait..." : tab === "login" ? "Log in →" : "Create account →"}
+          </button>
         </form>
-        <div className="divider-text"><span>or</span></div>
-        <button className="btn btn-outline" style={{ width: "100%", padding: "0.7rem" }}>Continue with Google</button>
         <div style={{ textAlign: "center", marginTop: "1.25rem", fontSize: "0.825rem", color: "#64748B" }}>
           {tab === "login" ? "Don't have an account? " : "Already have an account? "}
-          <span style={{ color: "#4F46E5", cursor: "pointer", fontWeight: 500 }} onClick={() => setTab(tab === "login" ? "register" : "login")}>{tab === "login" ? "Sign up" : "Log in"}</span>
+          <span style={{ color: "#4F46E5", cursor: "pointer", fontWeight: 500 }} onClick={() => { setTab(tab === "login" ? "register" : "login"); setError(""); }}>{tab === "login" ? "Sign up" : "Log in"}</span>
         </div>
       </div>
     </div>
