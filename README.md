@@ -61,7 +61,9 @@ REST API built with Express, JWT authentication, and role-based access control (
 | `/api/applications/job/:jobId` | GET | Yes | employer (owner) |
 | `/api/applications/:id/status` | PUT | Yes | employer |
 
-All routes were manually tested in Postman — see [`Task-2-Backend/API_TESTING.md`](./Task-2-Backend/API_TESTING.md) for screenshots and explanations of each test.
+All routes were manually tested in Postman — see [`Task-2-Backend/Backend API photos
+.md`](./Task-2-Backend/Backend API photos
+.md) for screenshots and explanations of each test.
 
 📂 [View Task 2 folder](./Task-2-Backend)
 
